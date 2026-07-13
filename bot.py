@@ -110,25 +110,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await update.message.reply_text("Parsing candidate info...")
 
-    candidate = await parse_candidate(text)
+    try:
+        candidate = await parse_candidate(text)
 
-    await _store_pending(user.id, {
-        "candidate": candidate,
-        "submitted_by": f"@{user.username}" if user.username else user.full_name,
-    })
+        await _store_pending(user.id, {
+            "candidate": candidate,
+            "submitted_by": f"@{user.username}" if user.username else user.full_name,
+        })
 
-    preview = _format_preview(candidate)
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("Save to Notion", callback_data="confirm"),
-            InlineKeyboardButton("Discard", callback_data="discard"),
-        ]
-    ])
+        preview = _format_preview(candidate)
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Save to Notion", callback_data="confirm"),
+                InlineKeyboardButton("Discard", callback_data="discard"),
+            ]
+        ])
 
-    await status_msg.edit_text(
-        f"Parsed candidate info:\n\n{preview}\n\nSave this to Notion?",
-        reply_markup=keyboard,
-    )
+        await status_msg.edit_text(
+            f"Parsed candidate info:\n\n{preview}\n\nSave this to Notion?",
+            reply_markup=keyboard,
+        )
+    except Exception as e:
+        logger.error("handle_message error: %s", e)
+        await status_msg.edit_text("Something went wrong while parsing. Please try again.")
 
 
 def _format_preview(c: dict) -> str:

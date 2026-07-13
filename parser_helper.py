@@ -34,7 +34,7 @@ Return ONLY valid JSON with these fields (omit any field not found in the text):
 Return the JSON object only, no markdown, no explanation."""
 
     try:
-        async with httpx.AsyncClient(timeout=15) as http:
+        async with httpx.AsyncClient(timeout=8) as http:
             response = await http.post(
                 GEMINI_URL,
                 headers={
