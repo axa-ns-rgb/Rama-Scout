@@ -26,23 +26,23 @@ VALID_SKILLS = {
 
 async def create_candidate_entry(candidate: dict, submitted_by: str) -> str:
     properties: dict = {
-        "Name": {
-            "title": [{"text": {"content": candidate.get("name") or "Unknown"}}]
+        "Position": {
+            "title": [{"text": {"content": candidate.get("position") or "Unknown Position"}}]
         },
         "Phase": {"select": {"name": "New Lead"}},
         "Submitted By": {"rich_text": [{"text": {"content": submitted_by}}]},
     }
+
+    if candidate.get("name"):
+        properties["Candidate Name"] = {
+            "rich_text": [{"text": {"content": candidate["name"]}}]
+        }
 
     if candidate.get("email"):
         properties["Email"] = {"email": candidate["email"]}
 
     if candidate.get("phone"):
         properties["Phone"] = {"phone_number": candidate["phone"]}
-
-    if candidate.get("position"):
-        properties["Position"] = {
-            "rich_text": [{"text": {"content": candidate["position"][:2000]}}]
-        }
 
     grade = GRADE_MAP.get(candidate.get("experience_level", ""))
     if grade:
