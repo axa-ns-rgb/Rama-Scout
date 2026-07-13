@@ -1,12 +1,12 @@
 import os
 import json
 import logging
-import google.generativeai as genai
+import httpx
 
 logger = logging.getLogger(__name__)
 
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-2.0-flash")
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 VALID_SKILLS = [
     "Python", "JavaScript", "React", "Node.js", "Go", "Java",
@@ -34,8 +34,18 @@ Return ONLY valid JSON with these fields (omit any field not found in the text):
 Return the JSON object only, no markdown, no explanation."""
 
     try:
-        response = await model.generate_content_async(prompt)
-        raw = response.text.strip()
+        async with httpx.AsyncClient(timeout=15) as http:
+            response = await http.post(
+                GEMINI_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-goog-api-key": GEMINI_API_KEY,
+                },
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+            )
+            response.raise_for_status()
+
+        raw = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
         # Strip markdown code fences if Gemini wraps the response
         if raw.startswith("```"):
