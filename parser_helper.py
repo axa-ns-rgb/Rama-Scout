@@ -6,7 +6,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
 
 VALID_SKILLS = [
     "Python", "JavaScript", "React", "Node.js", "Go", "Java",
@@ -34,7 +34,7 @@ Return ONLY valid JSON with these fields (omit any field not found in the text):
 Return the JSON object only, no markdown, no explanation."""
 
     try:
-        async with httpx.AsyncClient(timeout=8) as http:
+        async with httpx.AsyncClient(timeout=20) as http:
             response = await http.post(
                 GEMINI_URL,
                 headers={
