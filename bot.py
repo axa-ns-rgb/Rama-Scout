@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, Request
@@ -46,22 +47,37 @@ async def _ensure_initialized():
 
 # --- Supabase state helpers ---
 
+async def _supabase_request(method: str, path: str, **kwargs) -> httpx.Response:
+    """Vercel's Python sandbox occasionally raises OSError: [Errno 16] Device or
+    resource busy on the first DNS lookup of a host in a cold container. It's a
+    transient race, not a real fault, so retry a couple of times before giving up.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=10) as http:
+                return await http.request(method, f"{SUPABASE_URL}{path}", headers=SUPABASE_HEADERS, **kwargs)
+        except (httpx.TransportError, OSError) as e:
+            last_exc = e
+            if attempt < 2:
+                await asyncio.sleep(0.3 * (attempt + 1))
+    raise last_exc
+
+
 async def _store_pending(user_id: int, data: dict):
-    async with httpx.AsyncClient(timeout=10) as http:
-        await http.post(
-            f"{SUPABASE_URL}/rest/v1/pending_candidates",
-            headers=SUPABASE_HEADERS,
-            json={"user_id": user_id, "data": data, "created_at": datetime.now(timezone.utc).isoformat()},
-        )
+    await _supabase_request(
+        "POST",
+        "/rest/v1/pending_candidates",
+        json={"user_id": user_id, "data": data, "created_at": datetime.now(timezone.utc).isoformat()},
+    )
 
 
 async def _get_pending(user_id: int) -> dict | None:
-    async with httpx.AsyncClient(timeout=10) as http:
-        response = await http.get(
-            f"{SUPABASE_URL}/rest/v1/pending_candidates",
-            headers=SUPABASE_HEADERS,
-            params={"user_id": f"eq.{user_id}", "select": "data,created_at"},
-        )
+    response = await _supabase_request(
+        "GET",
+        "/rest/v1/pending_candidates",
+        params={"user_id": f"eq.{user_id}", "select": "data,created_at"},
+    )
     rows = response.json()
     if not rows:
         return None
@@ -74,12 +90,11 @@ async def _get_pending(user_id: int) -> dict | None:
 
 
 async def _delete_pending(user_id: int):
-    async with httpx.AsyncClient(timeout=10) as http:
-        await http.delete(
-            f"{SUPABASE_URL}/rest/v1/pending_candidates",
-            headers=SUPABASE_HEADERS,
-            params={"user_id": f"eq.{user_id}"},
-        )
+    await _supabase_request(
+        "DELETE",
+        "/rest/v1/pending_candidates",
+        params={"user_id": f"eq.{user_id}"},
+    )
 
 
 # --- Bot handlers ---
