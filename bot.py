@@ -14,6 +14,7 @@ from telegram.ext import (
 import httpx
 from parser_helper import parse_candidate
 from notion_helper import create_candidate_entry
+from linkedin_helper import find_linkedin_url, fetch_linkedin_preview
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -111,7 +112,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text("Parsing candidate info...")
 
     try:
+        linkedin_url = find_linkedin_url(text)
+        if linkedin_url:
+            preview = await fetch_linkedin_preview(linkedin_url)
+            if preview:
+                extra = "\n".join(filter(None, [preview.get("title"), preview.get("description")]))
+                text = f"{text}\n\n[LinkedIn preview]\n{extra}"
+
         candidate = await parse_candidate(text)
+        if linkedin_url and not candidate.get("linkedin"):
+            candidate["linkedin"] = linkedin_url
 
         await _store_pending(user.id, {
             "candidate": candidate,
