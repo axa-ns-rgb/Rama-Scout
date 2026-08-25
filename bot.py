@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -240,3 +240,16 @@ async def setup_webhook():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+CRON_SECRET = os.environ.get("CRON_SECRET")
+
+
+@app.get("/cron/keepalive")
+async def cron_keepalive(request: Request):
+    """Vercel Cron hits this daily so Supabase's Free-tier 7-day
+    inactivity auto-pause never triggers."""
+    if CRON_SECRET and request.headers.get("authorization") != f"Bearer {CRON_SECRET}":
+        raise HTTPException(status_code=401)
+    await _supabase_request("GET", "/rest/v1/pending_candidates", params={"limit": "1"})
+    return {"ok": True}
