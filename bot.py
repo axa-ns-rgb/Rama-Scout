@@ -36,31 +36,34 @@ app = FastAPI()
 bot_app = Application.builder().token(TELEGRAM_TOKEN).build()
 
 _initialized = False
+_supabase_client = httpx.AsyncClient(timeout=10)
 
 
 async def _ensure_initialized():
     global _initialized
     if not _initialized:
         await bot_app.initialize()
+        # Vercel's Python sandbox occasionally raises OSError: [Errno 16] Device or
+        # resource busy on the first DNS lookup of a host in a cold container. Absorb
+        # that race here, against a throwaway request, before any user is waiting on it.
+        try:
+            await _supabase_request("GET", "/rest/v1/pending_candidates", params={"limit": "1"})
+        except Exception:
+            pass
         _initialized = True
 
 
 # --- Supabase state helpers ---
 
 async def _supabase_request(method: str, path: str, **kwargs) -> httpx.Response:
-    """Vercel's Python sandbox occasionally raises OSError: [Errno 16] Device or
-    resource busy on the first DNS lookup of a host in a cold container. It's a
-    transient race, not a real fault, so retry a couple of times before giving up.
-    """
     last_exc: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(5):
         try:
-            async with httpx.AsyncClient(timeout=10) as http:
-                return await http.request(method, f"{SUPABASE_URL}{path}", headers=SUPABASE_HEADERS, **kwargs)
+            return await _supabase_client.request(method, f"{SUPABASE_URL}{path}", headers=SUPABASE_HEADERS, **kwargs)
         except (httpx.TransportError, OSError) as e:
             last_exc = e
-            if attempt < 2:
-                await asyncio.sleep(0.3 * (attempt + 1))
+            if attempt < 4:
+                await asyncio.sleep(0.5 * (attempt + 1))
     raise last_exc
 
 
